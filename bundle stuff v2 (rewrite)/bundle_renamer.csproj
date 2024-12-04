@@ -9,7 +9,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="AssetsTools.NET" Version="3.0.0" />
+    <Reference Include="AssetsTools.NET">
+      <HintPath>AssetsTools.NET.dll</HintPath>
+    </Reference>
   </ItemGroup>
 
 </Project>
