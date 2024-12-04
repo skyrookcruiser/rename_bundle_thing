@@ -2,6 +2,9 @@
 
 renames the bundle n stuff
 
+this is ass i hope nobody finds it
+
+
 how to use:
 
 1) put all your bundles in ``to_rename`` folder
