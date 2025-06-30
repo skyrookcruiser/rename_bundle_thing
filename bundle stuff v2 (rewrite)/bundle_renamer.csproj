@@ -1,17 +1,32 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-  <PropertyGroup>
-    <OutputType>Exe</OutputType>
-    <TargetFramework>net6.0</TargetFramework>
-    <RootNamespace>bundle_renamer</RootNamespace>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-  </PropertyGroup>
+	<PropertyGroup>
+		<OutputType>Exe</OutputType>
+		<TargetFramework>net6.0-windows</TargetFramework>
+		<RootNamespace>bundle_renamer</RootNamespace>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<UseWindowsForms>True</UseWindowsForms>
+		<PackAsTool>True</PackAsTool>
+	</PropertyGroup>
 
-  <ItemGroup>
-    <Reference Include="AssetsTools.NET">
-      <HintPath>AssetsTools.NET.dll</HintPath>
-    </Reference>
-  </ItemGroup>
+	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+		<DebugType>portable</DebugType>
+	</PropertyGroup>
+
+	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+		<DebugType>portable</DebugType>
+	</PropertyGroup>
+
+	<ItemGroup>
+	  <PackageReference Include="SharpCompress" Version="0.38.0" />
+	  <PackageReference Include="ZstdSharp.Port" Version="0.8.3" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<Reference Include="AssetsTools.NET">
+			<HintPath>AssetsTools.NET.dll</HintPath>
+		</Reference>
+	</ItemGroup>
 
 </Project>

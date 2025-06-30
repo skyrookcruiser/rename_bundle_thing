@@ -1,66 +1,93 @@
-﻿// See https://aka.ms/new-console-template for more information
-using AssetsTools.NET;
+﻿using AssetsTools.NET;
 using AssetsTools.NET.Extra;
-using System.IO;
+using SharpCompress.Common;
+using SharpCompress.Compressors.Xz;
+using SharpCompress.Compressors.Xz.Filters;
+using System.Drawing;
+using System.IO.Compression;
+using System.Reflection.Metadata;
 
-string baseDir = AppDomain.CurrentDomain.BaseDirectory;
-
-//path stuff
-DirectoryInfo to_renamePath = Directory.CreateDirectory(Path.Combine(baseDir, "to_rename"));
-DirectoryInfo exportPath = Directory.CreateDirectory(Path.Combine(baseDir, "export"));
-
-AssetsManager manager = new AssetsManager();
-
-Console.WriteLine($"Finding bundles in {to_renamePath.FullName}");
-string[] paths = Directory.GetFiles(to_renamePath.FullName);
-foreach (string path in paths)
+namespace bundle_renamer
 {
-    (BundleFileInstance bundleInst, AssetsFileInstance assetInst) = LoadBundle(manager, path);
-    AssetBundleFile bundle = bundleInst.file;
-    AssetsFile asset = assetInst.file;
-
-    AssetBundleDirectoryInfo main = bundle.BlockAndDirInfo.DirectoryInfos[0];
-    main.Name = bundleInst.name; //change bundle name
-    Console.WriteLine($"changing StreamingInfo paths on {bundleInst.name}...");
-    ChangeStreamingInfoPaths(manager, assetInst);
-    main.SetNewData(asset); //confirm changes to asset
-    Console.WriteLine($"packing {bundleInst.name}...");
-    PackBundle(bundle, Path.Combine(exportPath.FullName, $"{bundleInst.name}"));
-}
-
-Console.WriteLine($"found [{paths.Length}] bundles");
-Console.WriteLine("Press any key to exit...");
-Console.ReadKey();
-
-static (BundleFileInstance, AssetsFileInstance) LoadBundle(AssetsManager manager, string bundlePath)
-{
-    BundleFileInstance bundleInstance = manager.LoadBundleFile(bundlePath);
-    AssetsFileInstance assetInstance = manager.LoadAssetsFileFromBundle(bundleInstance, 0, true);
-    Console.WriteLine($"found bundle {bundleInstance.name}");
-    return (bundleInstance, assetInstance);
-}
-
-
-static void ChangeStreamingInfoPaths(AssetsManager manager, AssetsFileInstance assetInst)
-{
-    string newPath = $"archive:/{assetInst.name}.resS";
-    foreach(AssetFileInfo assetFileInfo in assetInst.file.AssetInfos)
+    internal class Program
     {
-        AssetTypeValueField item = manager.GetBaseField(assetInst, assetFileInfo);
-        AssetTypeValueField streamingInfo = item.Get("m_StreamData"); if (streamingInfo.ToString().StartsWith("DUMMY DUMMY")) continue;
-        AssetTypeValueField path_StreamingInfo = streamingInfo.Get("path"); if (path_StreamingInfo.AsString.Length < 1) continue;
-        path_StreamingInfo.AsString = newPath; //change path
-        assetFileInfo.SetNewData(item); //set changes
-    }
-}
+        public static string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+        public static DirectoryInfo to_renamePath = Directory.CreateDirectory(Path.Combine(baseDir, "to_rename"));
+        public static DirectoryInfo exportPath = Directory.CreateDirectory(Path.Combine(baseDir, "export"));
+        public static DirectoryInfo cloneFromPath = Directory.CreateDirectory(Path.Combine(baseDir, "cloneFrom"));
+        public static string carraConvPath = Path.Combine(baseDir, "carra2bundle");
+        public static string tempPath = Path.Combine(baseDir, "temp");
 
-static void PackBundle(AssetBundleFile bundle, string path)
-{
-    using (AssetsFileWriter writer = new AssetsFileWriter(path + ".uncompressed")) { bundle.Write(writer);} //write uncompressed
-    Console.WriteLine($"compressing...");
-    AssetBundleFile uncompressed = new AssetBundleFile();
-    uncompressed.Read(new AssetsFileReader(File.OpenRead(path + ".uncompressed")));
-    using (AssetsFileWriter writer = new AssetsFileWriter(path)) { uncompressed.Pack(writer, AssetBundleCompressionType.LZ4);}
-    uncompressed.Close();
-    File.Delete(path + ".uncompressed");
+        static AssetsManager manager = new AssetsManager();
+
+        [STAThread]
+        static void Main(string[] args)
+        {
+            if (Directory.Exists(tempPath)) Directory.Delete(tempPath, true);
+            if (Directory.Exists(carraConvPath)) Directory.Delete(carraConvPath, true);
+            Directory.CreateDirectory(carraConvPath);
+            Directory.CreateDirectory(tempPath);
+
+            List<(BundleFileInstance, AssetsFileInstance)> bruh = new();
+
+            Console.WriteLine("Finding original bundle...");
+            OpenFileDialog ofd = new OpenFileDialog()
+            {
+                Title = "Select original bundle",
+                InitialDirectory = baseDir,
+                Multiselect = false
+
+            };
+
+            if (ofd.ShowDialog() == DialogResult.OK)
+            {
+                var bundlePath = ofd.FileName;
+                if (Path.GetExtension(ofd.FileName).Contains("carra"))
+                {                   
+                    helper.carraConverter(bundlePath);
+                }
+                var yes = helper.LoadBundle(manager, ofd.FileName);
+                bruh.Add(yes);
+            }
+            else Environment.Exit(0);
+
+            OpenFileDialog ofd2 = new OpenFileDialog()
+            {
+                Title = "Select bundles to insert to original",
+                InitialDirectory = baseDir,
+                Multiselect = true
+
+            };
+
+            Console.WriteLine("Finding bundles to clone...");
+            if (ofd2.ShowDialog() == DialogResult.OK)
+            {
+                BundleFileInstance bundleInst = bruh[0].Item1;
+                AssetsFileInstance assetsInst = bruh[0].Item2;
+                AssetBundleFile bundle = bundleInst.file;
+                AssetsFile asset = assetsInst.file;
+
+                AssetBundleDirectoryInfo main = bundle.BlockAndDirInfo.DirectoryInfos[0];
+                helper.ChangeStreamingInfoPaths(manager, assetsInst, bundleInst);
+
+                int success = 0;
+                int fail = 0;
+                foreach (string path in ofd2.FileNames)
+                {
+                    var (clBundleInst, clAssetInst) = helper.LoadBundle(manager, path);
+                    var (s1, f1) = helper.CloneAssetsFromBundle(manager, (bundleInst, assetsInst), (clBundleInst, clAssetInst), (int)AssetClassID.Texture2D, "_experimental_t2d");
+                    var (s2, f2) = helper.CloneAssetsFromBundle(manager, (bundleInst, assetsInst), (clBundleInst, clAssetInst), (int)AssetClassID.Sprite, "_experimental_sprite");
+                    success += s1 + s2;
+                    fail += f1 + f2;
+                }
+                Console.WriteLine($"[INFO] succeeded importing {success} files, failed to import {fail} files to original bundle");
+                main.SetNewData(asset);
+                helper.PackBundle(bundle, Path.Combine(exportPath.FullName, $"{bundleInst.name}"));
+                Console.WriteLine("Press any key to exit...");
+                Console.ReadKey();
+            }
+            else Environment.Exit(0);
+
+        }
+    }
 }
