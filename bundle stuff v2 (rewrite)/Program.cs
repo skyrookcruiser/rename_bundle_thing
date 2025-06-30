@@ -77,8 +77,9 @@ namespace bundle_renamer
                     var (clBundleInst, clAssetInst) = helper.LoadBundle(manager, path);
                     var (s1, f1) = helper.CloneAssetsFromBundle(manager, (bundleInst, assetsInst), (clBundleInst, clAssetInst), (int)AssetClassID.Texture2D, "_experimental_t2d");
                     var (s2, f2) = helper.CloneAssetsFromBundle(manager, (bundleInst, assetsInst), (clBundleInst, clAssetInst), (int)AssetClassID.Sprite, "_experimental_sprite");
-                    success += s1 + s2;
-                    fail += f1 + f2;
+                    var (x1, x2) = helper.CloneAssetsFromBundle(manager, (bundleInst, assetsInst), (clBundleInst, clAssetInst), (int)AssetClassID.SpriteAtlas, "_experimental_atlas");
+                    success += s1 + s2 + x1;
+                    fail += f1 + f2 + x2;
                 }
                 Console.WriteLine($"[INFO] succeeded importing {success} files, failed to import {fail} files to original bundle");
                 main.SetNewData(asset);
